@@ -50,7 +50,7 @@ Como seria nossa visão dos dados se tivéssemos apenas uma amostra dos dados? `
 Se calcularmos a média do números de novos artistas escutados para três amostras de 100 elementos, teremos 3 resultados diferentes (3 $\hat{\theta}$ diferentes):
 
 ```{r}
-lastfm %>% pull(news) %>% sample(100) %>% mean()
+lastfm %>% pull(news) %>% sample(size = 100) %>% mean()
 lastfm %>% pull(news) %>% sample(100) %>% mean()
 lastfm %>% pull(news) %>% sample(100) %>% mean()
 ```
@@ -281,7 +281,7 @@ repeticoes = 4000 # pelo menos 2000, mas mais não faz mal.
 um_bootstrap <- function(x){
   news = x %>% pull(news)
   boot_x <- sample(news,           # amostre dos dados
-                   size = NROW(x), # tamanho igual ao recebido
+                   size = NROW(news), # tamanho igual ao recebido
                    replace = TRUE) # aqui é o bootstrap
   return(mean(boot_x))
 }
@@ -299,7 +299,7 @@ reamostragens
 ```{r}
 reamostragens %>%
   ggplot(aes(x = theta_c_s)) +
-  geom_histogram(binwidth = 1,
+  geom_histogram(binwidth = .5,
                  colour = "darkorange",
                  fill = "white")
 

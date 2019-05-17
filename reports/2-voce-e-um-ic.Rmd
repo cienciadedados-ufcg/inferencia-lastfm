@@ -39,6 +39,6 @@ glimpse(lastfm)
 
 Utilizaremos ICs para estimar duas métricas sobre os usuários do LastFM em geral durante um período de 6 meses. Em ambos os casos faremos isso a partir de uma amostra de 300 usuários. As duas métricas são: 
 
-1. Qual a proporção de novos artistas escutados pelos usuários
+1. Qual a proporção de novos artistas em geral escutada por usuários?
 2. Para os usuários que gostam de música muito pop (mediana_pop > 5), qual a correlação entre a popularidade mediana dos artistas escutado e a proporção dos artistas escutados que eram novos. 
 
