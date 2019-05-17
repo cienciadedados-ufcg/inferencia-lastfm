@@ -1,0 +1,44 @@
+---
+title: "Implementando ICs"
+author: "Nazareno"
+output:
+  html_document:
+    theme: readable
+    df_print: paged
+    toc: yes
+  html_notebook:
+    fig_width: 7
+    theme: readable
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+theme_set(theme_bw())
+```
+
+## Os dados
+
+```{r}
+set.seed(12345)
+
+lastfm = read_csv(here::here("data/experimento-lastfm.csv"), 
+                  col_types = cols(.default = col_double(), 
+                                   user = col_character()))
+
+lastfm = lastfm %>% 
+  sample_n(300) %>% 
+  select(news, old, mediana_pop)
+
+glimpse(lastfm)
+```
+
+## Proporção de artistas novos e popularidade
+
+Utilizaremos ICs para estimar duas métricas sobre os usuários do LastFM em geral durante um período de 6 meses. Em ambos os casos faremos isso a partir de uma amostra de 300 usuários. As duas métricas são: 
+
+1. Qual a proporção de novos artistas escutados pelos usuários
+2. Para os usuários que gostam de música muito pop (mediana_pop > 5), qual a correlação entre a popularidade mediana dos artistas escutado e a proporção dos artistas escutados que eram novos. 
+
