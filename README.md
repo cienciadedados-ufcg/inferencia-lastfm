@@ -9,6 +9,7 @@ Cada dado é um usuário do lastfm descrito segundo os artistas que ele escutou 
 Há 11,989 usuários.
 
 As principais variáveis são: 
+```
   * user           <chr> Nome do usuário
   * ecletic        <dbl> Quão eclético o usuário é, em uma medida inventada por Andryw.
   * media_pop      <dbl> Média do log10 da popularidade dos artistas escutados por esse usuário
@@ -16,4 +17,4 @@ As principais variáveis são:
   * dp_pop         <dbl> Desvio padrão do mesmo
   * news           <dbl> Quantos artistas novos foram escutados durante os 6 meses
   * old            <dbl> Quantos artistas já conhecidos foram escutados durante os 6 meses
-
+```
