@@ -29,8 +29,8 @@ glimpse(lastfm)
 
 lastfm = select(lastfm, news, ecletic)
 
-lastfm %>% ggplot(aes(news)) + geom_histogram(binwidth = 10)
-lastfm %>% ggplot(aes(ecletic)) + geom_histogram(binwidth = 100)
+lastfm %>% ggplot(aes(news)) + geom_histogram(binwidth = 10, boundary = 0)
+lastfm %>% ggplot(aes(ecletic)) + geom_histogram(binwidth = 100, boundary = 0)
 ```
 
 ## Amostra e visões a partir dela
@@ -50,9 +50,9 @@ Como seria nossa visão dos dados se tivéssemos apenas uma amostra dos dados? `
 Se calcularmos a média do números de novos artistas escutados para três amostras de 100 elementos, teremos 3 resultados diferentes (3 $\hat{\theta}$ diferentes):
 
 ```{r}
-lastfm %>% pull(news) %>% sample(size = 100) %>% mean()
-lastfm %>% pull(news) %>% sample(100) %>% mean()
-lastfm %>% pull(news) %>% sample(100) %>% mean()
+lastfm %>% sample_n(size = 100) %>% pull(news) %>%  mean()
+lastfm %>% sample_n(100) %>% pull(news) %>% mean()
+lastfm %>% sample_n(100) %>% pull(news) %>% mean()
 ```
 
 Se fizermos isso muitas vezes vemos como essa variação de $\hat{\theta}$ acontece. A distribuição dos valores de uma estatística em diferentes amostras de uma população se chama **distribuição amostral** da estatística.
@@ -62,8 +62,8 @@ set.seed(1)
 
 amostra_calcula_theta_c = function(df, n = 100) {
   df %>%
-    pull(news) %>%
-    sample(n) %>%
+    sample_n(n) %>% 
+    pull(news) %>% 
     mean()
 }
 
@@ -269,7 +269,7 @@ theta = funcao_theta(lastfm)
 
 set.seed(1212)
 amostra = lastfm %>%  
-  sample_n(200) 
+  sample_n(100) 
 
 theta_c = funcao_theta(amostra)
 ```
