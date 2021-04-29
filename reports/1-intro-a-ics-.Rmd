@@ -5,6 +5,7 @@ output:
   html_document:
     theme: readable
     df_print: paged
+    code_folding: show
     toc: yes
   html_notebook:
     fig_width: 7
@@ -22,37 +23,45 @@ theme_set(theme_bw())
 ## Os dados
 
 ```{r}
-lastfm = read_csv(here::here("data/experimento-lastfm.csv"), 
-                  col_types = cols(.default = col_double(), 
-                                   user = col_character()))
+lastfm = read_csv(
+  here::here("data/experimento-lastfm.csv"),
+  col_types = cols(.default = col_double(),
+                   user = col_character())
+)
+
+lastfm = select(lastfm, news, old, ecletic) %>% filter(!is.na(news + old)) %>% mutate(artists = (news + old)/6)
+
 glimpse(lastfm)
+```
 
-lastfm = select(lastfm, news, ecletic)
-
-lastfm %>% ggplot(aes(news)) + geom_histogram(binwidth = 10, boundary = 0)
+```{r}
+lastfm %>% ggplot(aes((artists))) + geom_histogram(binwidth = 20, boundary = 0)
+```
+```{r}
 lastfm %>% ggplot(aes(ecletic)) + geom_histogram(binwidth = 100, boundary = 0)
 ```
+
 
 ## Amostra e visões a partir dela
 
 Imagine por agora que os dados que temos do Last.fm são completos. Que são a população inteira de usuários. Se o que nos interessa por exemplo é a média dessa população, ela é exatamente: 
 
 ```{r}
-theta = lastfm %>%  
-  pull(news) %>% 
+THETA = lastfm %>%  
+  pull(artists) %>% 
   mean() # theta: média calculada com todos os dados
 
-theta
+THETA
 ```
 
-Como seria nossa visão dos dados se tivéssemos apenas uma amostra dos dados? `sample(x, n)` faz uma amostra aleatórioa de `n` elementos tirados do vetor `x`:
+Como seria nossa visão dos dados se tivéssemos apenas uma amostra dos dados? `sample_n(x, n)` faz uma amostra aleatórioa de `n` elementos tirados do vetor `x`:
 
 Se calcularmos a média do números de novos artistas escutados para três amostras de 100 elementos, teremos 3 resultados diferentes (3 $\hat{\theta}$ diferentes):
 
 ```{r}
-lastfm %>% sample_n(size = 100) %>% pull(news) %>%  mean()
-lastfm %>% sample_n(100) %>% pull(news) %>% mean()
-lastfm %>% sample_n(100) %>% pull(news) %>% mean()
+lastfm %>% sample_n(size = 100) %>% pull(artists) %>%  mean()
+lastfm %>% sample_n(100) %>% pull(artists) %>% mean()
+lastfm %>% sample_n(100) %>% pull(artists) %>% mean()
 ```
 
 Se fizermos isso muitas vezes vemos como essa variação de $\hat{\theta}$ acontece. A distribuição dos valores de uma estatística em diferentes amostras de uma população se chama **distribuição amostral** da estatística.
@@ -60,28 +69,18 @@ Se fizermos isso muitas vezes vemos como essa variação de $\hat{\theta}$ acont
 ```{r}
 set.seed(1)
 
-amostra_calcula_theta_c = function(df, n = 100) {
+amostra_theta_c = function(df, n = 100) {
   df %>%
     sample_n(n) %>% 
-    pull(news) %>% 
+    pull(artists) %>% 
     mean()
 }
 
 amostras = tibble(amostra = 1:1000) %>% # faremos 1000 vezes
-  mutate(theta_c = map_dbl(amostra, ~ amostra_calcula_theta_c(lastfm)))
+  mutate(theta_c = map_dbl(amostra, ~ amostra_theta_c(lastfm)))
 
 amostras
 ```
-
-Podemos ver também qual a distribuição do **erro amostral**:
-
-```{r}
-amostras = amostras %>% 
-  mutate(erro = theta_c - theta)
-
-amostras
-```
-
 
 ```{r}
 amostras %>%
@@ -89,16 +88,28 @@ amostras %>%
   geom_histogram(binwidth = .5,
                  fill = "white",
                  colour = "darkgrey") +
-  geom_vline(xintercept = theta) + 
+  geom_vline(xintercept = THETA, linetype = "dashed") + 
   labs(title = "Distribuição amostral")
+```
 
 
+Podemos ver também qual a distribuição do **erro amostral**:
+
+```{r}
+amostras = amostras %>% 
+  mutate(erro = theta_c - THETA)
+
+amostras
+```
+
+
+```{r}
 amostras %>%
   ggplot(aes(erro)) +
   geom_histogram(binwidth = .5,
                  fill = "white",
                  colour = "darkblue") +
-  geom_vline(xintercept = 0) + 
+  geom_vline(xintercept = 0, linetype = "dashed") + 
   labs(title = "Distribuição do erro amostral")
 ```
 
@@ -114,19 +125,19 @@ intervalo = amostras %>%
 intervalo
 ```
 
-Esse esse intervalo ao redor de $\theta$ é o intervalo onde $\hat{\theta}$ está 90% do tempo: 
+Esse esse intervalo ao redor de $\theta$ é o intervalo onde $\hat{\theta}$ está 90% do tempo:
 
 ```{r}
-intervalo = intervalo %>% 
-  mutate(valor_i = theta + erro_i, 
-         valor_s = theta + erro_s)
+intervalo = intervalo %>%
+  mutate(valor_i = THETA + erro_i,
+         valor_s = THETA + erro_s)
 
 intervalo
 
 amostras %>%
   mutate(no_intervalo = theta_c >= intervalo$valor_i &
            theta_c <= intervalo$valor_s) %>%
-  summarise(sum(no_intervalo) / n())
+  summarise(cobertura = sum(no_intervalo) / n())
 ```
 
 ```{r}
@@ -136,7 +147,7 @@ ggplot() +
     aes(xmin = valor_i, xmax = valor_s),
     ymin = -Inf,
     ymax = Inf,
-    fill = "red", 
+    fill = "coral", 
     alpha = .25
   ) +
   geom_histogram(
@@ -146,38 +157,49 @@ ggplot() +
     fill = "white",
     colour = "darkgrey"
   ) +
-  geom_vline(xintercept = theta) +
-  labs(title = expression("Intervalo ao redor de" ~ theta))
+  geom_vline(xintercept = THETA, linetype = "dashed") +
+  labs(title = expression("Intervalo na distribuição amostral ao redor de" ~ theta))
 ```
 
 #### Se sabemos a distância de A pra B, sabemos de B pra A
 
 O pulo do gato é entender que quando sabemos dizer se $\theta$ está perto de $\hat{\theta}$, sabemos também dizer o inverso. Então se há 90% dos $\hat{\theta}$ que estão entre $[\theta + \sigma_{.05}; \theta + \sigma_{.95}]$, isso também significa que para 90% dos $\hat{\theta}$, $\theta$ está a $[hat{\theta} + \sigma_{.05}; \hat{\theta} + \sigma_{.95}].
 
+Partindo dos $\hat{\theta}$ que calculamos no início de nosso exercício, podemos ver como esse método funciona:
+
 ```{r}
 ic_amostras = amostras %>% 
   mutate(intervalo_i = theta_c + intervalo$erro_i, 
          intervalo_s = theta_c + intervalo$erro_s) %>% 
-  mutate(contem_theta = theta >= intervalo_i & theta <= intervalo_s) 
+  mutate(contem_theta = THETA >= intervalo_i & THETA <= intervalo_s) 
 
+ic_amostras %>% 
+  sample_n(10)
+```
+
+```{r}
 ic_amostras %>% 
   summarise(cobertura = sum(contem_theta) / n())
+```
 
+```{r}
 ic_amostras %>% 
-  slice(1:50) %>% 
+  sample_n(50) %>% 
+  mutate(i = 1:n()) %>% 
   ggplot(aes(
-    x = amostra,
+    x = i,
     y = theta_c,
     ymin = intervalo_i,
     ymax = intervalo_s,
     color = contem_theta
   )) +
   geom_pointrange(alpha = .8, size = .3) +
-  geom_hline(yintercept = theta, color = "dark blue") +
+  geom_hline(yintercept = THETA, color = "dark blue") +
   labs(x = "amostra",
        y = "média") +
   scale_color_manual(values = c("red", "grey70"))
 ```
+
 
 ### Podia ser outra estatística
 
@@ -190,7 +212,7 @@ funcao_theta = function(df) {
     median()
 }
 
-theta = funcao_theta(lastfm)
+THETA_OUTRO = funcao_theta(lastfm)
 
 amostras = tibble(amostra = 1:1000) %>% # faremos 1000 vezes
   mutate(theta_c = map_dbl(amostra, ~ lastfm %>% 
@@ -202,7 +224,32 @@ amostras
 amostras %>% 
   ggplot(aes(theta_c)) + 
   geom_histogram(binwidth = 1, fill = "white", colour = "darkgrey") + 
-  geom_vline(xintercept = theta) 
+  geom_vline(xintercept = THETA_OUTRO) 
+```
+```{r}
+amostras = amostras %>% 
+  mutate(erro = theta_c - THETA_OUTRO)
+
+amostras %>%
+  ggplot(aes(erro)) +
+  geom_histogram(binwidth = 1,
+                 fill = "white",
+                 colour = "darkblue") +
+  geom_vline(xintercept = 0, linetype = "dashed") + 
+  labs(title = "Distribuição do erro amostral")
+```
+
+```{r}
+margem_erro = amostras %>%
+  summarise(baixo = quantile(erro, .05),
+            cima = quantile(erro, .95)) 
+margem_erro
+```
+```{r}
+amostras %>% 
+  sample_n(1) %>% 
+  mutate(ic_inferior = theta_c + margem_erro$baixo, 
+         ic_superior = theta_c + margem_erro$cima)
 ```
 
 
@@ -213,16 +260,16 @@ E se o tamanho da amostra (*n*) fosse muito menor?
 ```{r}
 amostras = data.frame(amostra = 1:1000) %>% # faremos 1000 vezes
   mutate(media = map_dbl(amostra, ~ lastfm %>% 
-                                      pull(news) %>% 
-                                      sample(10) %>% 
+                                      pull(artists) %>% 
+                                      sample(100) %>% 
                                       mean()))
 
-amostras
+amostras %>% summary
 
 amostras %>% 
   ggplot(aes(media)) + 
-  geom_histogram(binwidth = .5, fill = "white", colour = "darkgrey") + 
-  geom_vline(xintercept = theta) 
+  geom_histogram(binwidth = 1, fill = "white", colour = "darkgrey") + 
+  geom_vline(xintercept = THETA) 
 
 ```
 
@@ -230,7 +277,7 @@ amostras %>%
 
 ## E como conseguimos a distribuição amostral?
 
-Espero que até agora tenha ficado claro que tendo a distribuição dos valores de uma estatística $\hat{\theta}$ a partir de amostras (a *distribuição amostral*) e do valor de $\hat{\theta}$ conseguimos estimar um intervalo com um método que acerta com uma cobertura conhecida. Conseguimos estimar uma margem de erro a partir de nosso $\hat{\theta}$ com uma confiança conhecida.
+Espero que até agora tenha ficado claro que tendo a distribuição dos valores de uma estatística $\hat{\theta}$ a partir de amostras (a *distribuição amostral*) e o valor de $\hat{\theta}$, nós conseguimos estimar um intervalo com um método que acerta com uma cobertura conhecida. Conseguimos estimar uma margem de erro a partir de nosso $\hat{\theta}$ com uma confiança conhecida.
 
 ### Só que...
 
@@ -238,7 +285,8 @@ Nós nunca temos várias amostras da população como nos exemplos até agora. E
 
 ### A ideia central que usaremos
 
-Não temos a população, para estimar a variação na distribuição amostral. Mas temos algo que veio dessa população, que é a amostra. Em várias situações como essa, a Estatística contorna a falta da informação ideal usando a que temos e um método que funcione bem assim. 
+Não temos a população para estimar a distribuição amostral e a distribuição do erro amostral. Mas temos algo que veio dessa população, que é a amostra. Em várias situações como essa, a Estatística contorna a falta da informação ideal usando a que temos e um método que funcione bem assim.
+
 A ideia principal que usaremos é uma técnica chamada *boostrapping* que funciona porque _usar a amostra como substituto da população e simular a amostragem através de reamostragem com reposição fornece uma estimativa precisa da variação na distribuição amostral_. 
 
 Pegando por partes: 
@@ -261,17 +309,20 @@ $P(\delta_{0.05} \le e_a - e_p  \le \delta_{0.95} | e_p) = .9$. Manipulando, tem
 ```{r}
 funcao_theta = function(df) {
   df %>%
-    pull(news) %>%
+    pull(artists) %>%
     mean()
 }
 
-theta = funcao_theta(lastfm)
+THETA = funcao_theta(lastfm)
 
 set.seed(1212)
+
 amostra = lastfm %>%  
-  sample_n(100) 
+  sample_n(50) 
 
 theta_c = funcao_theta(amostra)
+
+theta_c
 ```
 
 
@@ -279,10 +330,10 @@ theta_c = funcao_theta(amostra)
 repeticoes = 4000 # pelo menos 2000, mas mais não faz mal.
 
 um_bootstrap <- function(x){
-  news = x %>% pull(news)
-  boot_x <- sample(news,           # amostre dos dados
-                   size = NROW(news), # tamanho igual ao recebido
-                   replace = TRUE) # aqui é o bootstrap
+  dados = x %>% pull(artists)
+  boot_x <- sample(dados,              # amostre dos dados
+                   size = NROW(dados), # tamanho igual ao recebido
+                   replace = TRUE)     # aqui é o bootstrap
   return(mean(boot_x))
 }
 
@@ -301,13 +352,16 @@ reamostragens %>%
   ggplot(aes(x = theta_c_s)) +
   geom_histogram(binwidth = .5,
                  colour = "darkorange",
-                 fill = "white")
+                 fill = "white") + 
+  labs(title = "Distribuição nos bootstraps", 
+       subtitle = "É nossa estimativa da distribuição amostral")
 
 reamostragens %>%
   ggplot(aes(x = theta_c_s - theta_c)) +
   geom_histogram(binwidth = 1,
                  colour = "darkblue",
-                 fill = "white")
+                 fill = "white") + 
+  labs(title = "Distribuição do erro amostral estimada via bootstraps")
 ```
 
 ### Calculando o IC
@@ -333,7 +387,7 @@ intervalo = intervalo %>%
 intervalo
 ```
 
-```{r}
+```{r class.source = 'fold-hide'}
 ggplot() +
   geom_rect(
     data = intervalo,
@@ -343,6 +397,24 @@ ggplot() +
     fill = "gold",
     alpha = .25
   ) +
+  annotate(
+    geom = "text",
+    x = intervalo$valor_i,
+    y = -10,
+    label = paste("hat(theta) + MoE_i"),
+    parse = T,
+    color = "brown",
+    size = 3
+  ) +
+  annotate(
+    geom = "text",
+    x = intervalo$valor_s,
+    y = -10,
+    label = paste("hat(theta) + MoE_s"),
+    parse = T,
+    color = "brown",
+    size = 3
+  ) +
   geom_histogram(
     data = reamostragens,
     aes(theta_c_s),
@@ -350,10 +422,28 @@ ggplot() +
     fill = "white",
     colour = "darkgrey"
   ) +
-  geom_vline(xintercept = theta,
-             color = "blue",
+  geom_vline(xintercept = THETA,
+             color = "dodgerblue",
              size = 1.2) +
-  geom_vline(xintercept = theta_c, color = "dark green") +
+  annotate(
+    geom = "text",
+    x = THETA - .3,
+    y = -10,
+    label = "theta",
+    parse = T,
+    color = "dodgerblue",
+    size = 5
+  ) +
+  geom_vline(xintercept = theta_c, color = "brown") +
+  annotate(
+    geom = "text",
+    x = theta_c - .3,
+    y = -10,
+    label = "hat(theta)",
+    parse = T,
+    color = "brown",
+    size = 5
+  ) +
   labs(title = expression("Intervalo estimado via bootstrap"))
 ```
 
@@ -374,14 +464,14 @@ intervalo2
 ```
 
 
-```{r}
+```{r class.source = 'fold-hide'}
 ggplot() +
   geom_rect(
     data = intervalo2,
     aes(xmin = valor_i, xmax = valor_s),
     ymin = -Inf,
     ymax = Inf,
-    fill = "brown",
+    fill = "coral",
     alpha = .25
   ) +
   geom_rect(
@@ -389,7 +479,7 @@ ggplot() +
     aes(xmin = valor_i, xmax = valor_s),
     ymin = -Inf,
     ymax = Inf,
-    fill = "yellow",
+    fill = "coral2",
     alpha = .5
   ) +
   geom_histogram(
@@ -399,11 +489,12 @@ ggplot() +
     fill = "white",
     colour = "darkgrey"
   ) +
-  geom_vline(xintercept = theta,
-             color = "blue",
-             size = 1.2) +
-  geom_vline(xintercept = theta_c, color = "dark green") +
+  geom_vline(xintercept = THETA,
+             color = "dodgerblue",
+             size = 1.5) +
+  geom_vline(xintercept = theta_c, color = "brown") +
   labs(title = expression("Intervalo estimado via bootstrap"), 
-       subtitle = "Vermelho: 99%, amarelo 95% confiança")
+       subtitle = "Escuro: 99%, claro: 90% confiança", 
+       x = expression(hat(theta) ~ "*"))
 ```
 
