@@ -1,5 +1,5 @@
 ---
-title: "Implementando ICs"
+title: "Estimando ICs com Bootstrap"
 author: "Nazareno"
 output:
   html_document:
@@ -14,10 +14,11 @@ output:
     toc_float: yes
 ---
 
-```{r setup, include=FALSE, message=FALSE}
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-theme_set(theme_bw())
+library(hrbrthemes)
+theme_set(theme_ipsum_rc())
 ```
 
 ## Os dados
@@ -35,12 +36,8 @@ glimpse(lastfm)
 ```
 
 ```{r}
-lastfm %>% ggplot(aes((artists))) + geom_histogram(binwidth = 20, boundary = 0)
+lastfm %>% ggplot(aes(artists)) + geom_histogram(binwidth = 5, boundary = 0)
 ```
-```{r}
-lastfm %>% ggplot(aes(ecletic)) + geom_histogram(binwidth = 100, boundary = 0)
-```
-
 
 ## Amostra e visões a partir dela
 
@@ -307,6 +304,11 @@ $P(\delta_{0.05} \le e_a - e_p  \le \delta_{0.95} | e_p) = .9$. Manipulando, tem
 ### Aplicando bootstrapping 
 
 ```{r}
+glimpse(lastfm)
+```
+
+
+```{r}
 funcao_theta = function(df) {
   df %>%
     pull(artists) %>%
@@ -496,5 +498,24 @@ ggplot() +
   labs(title = expression("Intervalo estimado via bootstrap"), 
        subtitle = "Escuro: 99%, claro: 90% confiança", 
        x = expression(hat(theta) ~ "*"))
+```
+
+## Como normalmente vemos esse IC
+
+```{r}
+intervalo = intervalo %>% 
+  mutate(theta_c = theta_c)
+
+intervalo %>% 
+  ggplot(aes(x = "", y = theta_c, ymin = valor_i, ymax = valor_s)) + 
+  geom_linerange() + 
+  geom_point(size = 2) + 
+  coord_flip() +
+  scale_y_continuous(limits = c(15, 30)) + 
+  labs(
+    title = "IC da média de artistas escutados", 
+    y = "Média de artistas escutados por mês", 
+    x = "")
+
 ```
 

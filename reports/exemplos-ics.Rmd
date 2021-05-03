@@ -1,0 +1,203 @@
+---
+title: "ICs com o pacote boot"
+author: "Nazareno"
+output:
+  html_document:
+    theme: readable
+    df_print: paged
+    code_folding: show
+    toc: yes
+  html_notebook:
+    fig_width: 7
+    theme: readable
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(hrbrthemes)
+theme_set(theme_ipsum_rc())
+```
+
+## Os dados
+
+```{r}
+lastfm = read_csv(
+  here::here("data/experimento-lastfm.csv"),
+  col_types = cols(.default = col_double(),
+                   user = col_character())
+)
+
+amostra = lastfm %>% 
+    filter(!is.na(news + old)) %>% 
+    mutate(
+        novos = news / 6, 
+        grupo = case_when(
+            mediana_pop >= quantile(mediana_pop, .95) ~ "fã de pop",
+            mediana_pop <= quantile(mediana_pop, .05) ~ "não gosta de pop", 
+            TRUE ~ "outros"
+        )
+    ) %>%
+    filter(grupo != "outros") %>% 
+    select(grupo, novos)
+
+amostra %>% count(grupo)
+
+glimpse(amostra)
+
+```
+
+```{r}
+amostra %>% 
+  ggplot(aes(x = novos)) + 
+  facet_wrap(~ grupo, ncol = 1) + 
+  geom_histogram(binwidth = 1, boundary = 0) + 
+  geom_rug()
+```
+
+## IC de uma estatística em um grupo
+
+```{r}
+fas = amostra %>% 
+  filter(grupo == "fã de pop")
+```
+
+```{r}
+fas %>% 
+  summarise(media = mean(novos))
+```
+
+```{r}
+s <- function(d, i) {
+    sumarizado = d %>% 
+        slice(i) %>% 
+        summarise(do_grupo = mean(novos))
+    
+    sumarizado %>% 
+      pull(do_grupo)
+}
+
+s(fas, 1:(nrow(fas))) # theta_chapeu
+```
+
+```{r}
+library(boot)
+library(broom)
+
+booted <- boot(data = fas, 
+               statistic = s, 
+               R = 2000)
+
+ci_fas = tidy(booted, 
+              conf.level = .95,
+              conf.method = "basic",
+              conf.int = TRUE)
+
+glimpse(ci_fas)
+```
+
+```{r}
+ci_fas %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = "Fãs de pop"
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 2) +
+        scale_y_continuous(limits = c(0, 5)) +
+        labs(x = "", y = "Artistas novos/mês") +
+        coord_flip()
+```
+
+```{r}
+nao_fas = amostra %>% 
+  filter(grupo != "fã de pop")
+
+nao_fas %>% 
+  summarise(media = mean(novos))
+```
+
+```{r}
+booted <- boot(data = nao_fas, 
+               statistic = s, 
+               R = 1000)
+ci_naofas = tidy(booted, 
+               conf.level = .95,
+               conf.method = "basic",
+               conf.int = TRUE)
+glimpse(ci_naofas)
+```
+
+```{r}
+cis = bind_rows(
+  "pop" = ci_fas, 
+  "antipop" = ci_naofas, 
+  .id = "grupo"
+)
+```
+
+```{r}
+cis %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = grupo
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 2) +
+        scale_y_continuous(limits = c(2, 8)) +
+        labs(x = "", y = "Artistas novos/mês") +
+        coord_flip()
+```
+
+
+## IC da diferença das médias
+
+```{r}
+s <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(grupo) %>% 
+        summarise(do_grupo = mean(novos), .groups = "drop")
+    a = agrupado %>% filter(grupo == "fã de pop") %>% pull(do_grupo)
+    b = agrupado %>% filter(grupo == "não gosta de pop") %>% pull(do_grupo)
+    a - b
+}
+
+theta_c = s(amostra, 1:nrow(amostra))
+
+theta_c
+```
+
+
+```{r}
+booted <- boot(data = amostra, 
+               statistic = s, 
+               R = 2000)
+ci = tidy(booted, 
+          conf.level = .95,
+          conf.method = "basic",
+          conf.int = TRUE)
+glimpse(ci)
+```
+
+```{r}
+ci %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = ""
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        scale_y_continuous(limits = c(-5, 5)) +
+        labs(x = "", y = "Diferença na média (fãs - não fãs)") +
+        coord_flip()
+```
+
