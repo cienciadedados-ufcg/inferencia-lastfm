@@ -23,6 +23,8 @@ theme_set(theme_ipsum_rc())
 
 ## Os dados
 
+Usamos os dados coletados por Andryw Marques para o mestrado dele. Cada medição reflete os hábitos de uma pessoa usando o last.fm durante um semestre. Usaremos dois atributos que crio abaixo: o número (médio) de artistas novos (ie. previamente não escutados) escutados por mês pela pessoa, e se a pessoa é do grupo de 5% de pessoas que escuta artistas mais/menos populares.
+
 ```{r}
 lastfm = read_csv(
   here::here("data/experimento-lastfm.csv"),

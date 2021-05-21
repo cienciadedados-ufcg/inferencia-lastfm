@@ -23,6 +23,8 @@ theme_set(theme_ipsum_rc())
 
 ## Os dados
 
+Usamos os dados coletados por Andryw Marques para o mestrado dele. Cada medição reflete os hábitos de uma pessoa usando o last.fm durante um semestre. Usaremos apenas um atributo que crio abaixo: o número (médio) de artistas escutados por mês pela pessoa. 
+
 ```{r}
 lastfm = read_csv(
   here::here("data/experimento-lastfm.csv"),
@@ -160,7 +162,7 @@ ggplot() +
 
 #### Se sabemos a distância de A pra B, sabemos de B pra A
 
-O pulo do gato é entender que quando sabemos dizer se $\theta$ está perto de $\hat{\theta}$, sabemos também dizer o inverso. Então se há 90% dos $\hat{\theta}$ que estão entre $[\theta + \sigma_{.05}; \theta + \sigma_{.95}]$, isso também significa que para 90% dos $\hat{\theta}$, $\theta$ está a $[hat{\theta} + \sigma_{.05}; \hat{\theta} + \sigma_{.95}].
+O pulo do gato é entender que quando sabemos dizer se $\theta$ está perto de $\hat{\theta}$, sabemos também dizer o inverso. Então se há 90% dos $\hat{\theta}$ que estão entre $[\theta + \sigma_{.05}; \theta + \sigma_{.95}]$, isso também significa que para 90% dos $\hat{\theta}$, $\theta$ está a $[\hat{\theta} + \sigma_{.05}; \hat{\theta} + \sigma_{.95}]$.
 
 Partindo dos $\hat{\theta}$ que calculamos no início de nosso exercício, podemos ver como esse método funciona:
 

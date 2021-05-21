@@ -140,7 +140,7 @@ ics_artists %>%
 ics_artists_bca = simula_amostragens(lastfm$news,
                                      50,
                                      theta_artists,
-                                     method = "bca",
+                                     method = "bca", # bias-corrected accelerated 
                                      experiments = SIMULACOES)
 ```
 
