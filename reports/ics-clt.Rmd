@@ -1,0 +1,236 @@
+---
+title: "ICs a partir do TCL"
+author: "Nazareno"
+output:
+  html_document:
+    theme: readable
+    df_print: paged
+    code_folding: show
+    toc: yes
+  html_notebook:
+    fig_width: 7
+    theme: readable
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(hrbrthemes)
+theme_set(theme_ipsum_rc())
+```
+
+## Idéia geral
+
+Para algumas estatísticas de interesse $\theta$ e com certas condições nos dados que temos, existem resultados teóricos que permitem que calculemos ICs em torno de $\hat{\theta}$ a partir de uma [forma fechada](https://pt.wikipedia.org/wiki/Forma_fechada_(matem%C3%A1tica)) (aka uma fórmula). Essa forma fechada é mais simples de usar e mais eficiente que o bootstrap quando ela funciona. Mas se você já aprendeu o bootstrap, usá-lo já é fácil e ele funciona para muito mais instâncias de $\theta$, com menos condições sobre os dados.
+
+
+## Os dados
+
+Usamos os dados coletados por Andryw Marques para o mestrado dele. Cada medição reflete os hábitos de uma pessoa usando o last.fm durante um semestre. Usaremos apenas um atributo que crio abaixo: o número de artistas escutados por mês pela pessoa. 
+
+```{r}
+lastfm = read_csv(
+  here::here("data/experimento-lastfm.csv"),
+  col_types = cols(.default = col_double(),
+                   user = col_character())
+)
+
+lastfm = select(lastfm, news, old, ecletic) %>% filter(!is.na(news + old)) %>% mutate(artists = (news + old)/6)
+
+glimpse(lastfm)
+```
+
+```{r}
+lastfm %>% ggplot(aes(artists)) + geom_histogram(binwidth = 5, boundary = 0)
+```
+
+Consideraremos que os dados que temos do Last.fm são completos. Que são a população inteira de usuários. E que o que nos interessa (nosso $\theta$) é a média dessa população, ela é exatamente: 
+
+```{r}
+THETA = lastfm %>%  
+  pull(artists) %>% 
+  mean() # theta: média calculada com todos os dados
+
+THETA
+```
+
+## A base dos dois casos que veremos
+
+O TCL (CLT em inglês) é um resultado teórico fundamental nessa parte da estatística. O que ele diz é que se temos amostras de um tamanho razoável, a **distribuição amostral da média de uma variável é uma distribuição normal**. Além disso, essa distribuição tem parâmetros que conseguimos estimar facilmente a partir da amostra. 
+
+Isso é muito importante porque a distribuição normal é bem conhecida. Sabendo o formato da distribuição amostral, sabemos a do erro amostral, e substituímos o conhecimento que geramos via bootstraps na abordagem anterior que estudamos. 
+
+Por exemplo, sabemos que para distribuição normal com média 0 e desvio padrão 1, o intervalo $[-1.96, 1.96]$ contém 95% dos valores na distribuição. Dá para ver isso com código:
+
+```{r}
+tibble(valores = rnorm(n = 1e5, mean = 0, sd = 1)) %>% 
+    mutate(no_intervalo = valores >= -1.96 & valores <= 1.96) %>% 
+    summarise(sum(no_intervalo) / n())
+```
+
+```{r}
+tibble(valores = rnorm(n = 1e5, mean = 0, sd = 1)) %>% 
+  summarise(inferior = quantile(valores, .025), 
+            superior = quantile(valores, .025), )
+```
+
+
+O TCL mostra que *a normal da distribuição do erro amostral da média* tem média 0 e desvio padrão $\sigma / \sqrt{n}$, com $\sigma$ sendo o desvio padrão na população e $n$ sendo o tamanho das amostras. Isso, junto ao fato de que quando n é pelo menos 20 (ou 30 dependendo do autor), podemos usar o desvio padrão *na amostra* como substituto para o desvio padrão da população, é o que nos permite estimar ICs usando o TCL.
+
+## O caso da média
+
+Se calcularmos a média do números de novos artistas escutados para três amostras de 50 elementos, teremos 3 resultados diferentes (3 $\hat{\theta}$ diferentes):
+
+```{r}
+lastfm %>% sample_n(size = 50) %>% pull(artists) %>%  mean()
+lastfm %>% sample_n(50) %>% pull(artists) %>% mean()
+lastfm %>% sample_n(50) %>% pull(artists) %>% mean()
+```
+
+Se fizermos isso muitas vezes, observamos a **distribuição amostral** de $\hat{\theta}$: 
+
+```{r}
+set.seed(1)
+
+TAMANHO_AMOSTRAS = 50 # o nosso n
+
+amostra_theta_c = function(df, n = 50) {
+  df %>%
+    sample_n(n) %>% 
+    pull(artists) %>% 
+    mean()
+}
+
+amostras = tibble(amostra = 1:10000) %>% # faremos 10000 vezes
+  mutate(theta_c = map_dbl(amostra, ~ amostra_theta_c(lastfm, n = TAMANHO_AMOSTRAS)))
+
+amostras %>% 
+    slice(1:10)
+```
+
+```{r class.source = 'fold-hide'}
+amostras %>%
+  ggplot(aes(theta_c)) +
+  geom_histogram(binwidth = .5,
+                 fill = "white",
+                 colour = "darkgrey") +
+  geom_vline(xintercept = THETA, linetype = "dashed") + 
+  labs(title = "Distribuição amostral")
+```
+
+
+Podemos ver também qual a distribuição do **erro amostral**:
+
+```{r}
+amostras = amostras %>% 
+  mutate(erro = theta_c - THETA)
+
+amostras
+```
+
+
+```{r class.source = 'fold-hide'}
+amostras %>%
+  ggplot(aes(erro)) +
+  geom_histogram(binwidth = .5,
+                 fill = "white",
+                 colour = "darkblue") +
+  geom_vline(xintercept = 0, linetype = "dashed") + 
+  labs(title = "Distribuição do erro amostral")
+```
+
+Usando o teorema do limite central, a distribuição normal seria essa linha vermelha. Veja como é parecida com os dados da simulação do erro de muitas amostras, que é o histograma azul. 
+
+```{r}
+tcl = tibble(da_normal = rnorm(n = 1e4, mean = 0, sd = sd(lastfm$artists)/sqrt(TAMANHO_AMOSTRAS)))
+```
+
+```{r}
+amostras %>%
+  ggplot(aes(erro)) +
+  geom_histogram(binwidth = .5,
+                 fill = "white",
+                 colour = "darkblue", 
+                 alpha = .8) +
+    geom_freqpoly(
+        data = tcl, 
+        aes(x = da_normal), 
+        binwidth = .5,
+                 colour = "red") +
+  geom_vline(xintercept = 0, linetype = "dashed") + 
+  labs(title = "Distribuição do erro amostral", 
+       subtitle = "Linha vermelha é uma dist. normal a partir do TCL")
+```
+
+Com a distribuição do erro amostral conhecida, é simples calcular a margem de erro em torno da média de uma amostra qualquer:
+
+```{r}
+uma_amostra = lastfm %>% 
+    sample_n(TAMANHO_AMOSTRAS) %>% 
+    summarise(media = mean(artists), 
+              desvio = sd(artists), 
+              n = n())
+
+uma_amostra %>% 
+    mutate(margem_i = qnorm(p = .025, mean = 0, sd = desvio/sqrt(n)), 
+           margem_s = qnorm(p = .975, mean = 0, sd = desvio/sqrt(n)), 
+           ic_inferior = media + margem_i, 
+           ic_superior = media + margem_s)
+```
+Que é o mesmo que fazer: 
+
+```{r}
+uma_amostra %>% 
+    mutate(margem_i = qnorm(p = .025, mean = 0, sd = 1) * desvio/sqrt(n), 
+           margem_s = qnorm(p = .975, mean = 0, sd = 1) * desvio/sqrt(n), 
+           ic_inferior = media + margem_i, 
+           ic_superior = media + margem_s)
+```
+Como `qnorm(p = .975, mean = 0, sd = 1)` é 1.96, você frequentemente verá essa fórmula como $1.96 \times s / \sqrt{n}$, onde $s$ é o desvio padrão da amostra, ou $1.96 \times SE$, onde SE é o *standard error*, ou erro padrão, que é o desvio padrão do erro amostral dividido pela raiz quadrada de n.
+
+
+## O caso da proporção 
+
+No caso de $\theta$ ser uma proporção, o erro padrão da distribuição amostral também é conhecido. Se a população tem $\theta = p$, então $SE = \sqrt{p(1-p)/n}$.
+
+Vamos criar uma variável que nos diz se pelo menos um terço dos artistas escutados por cada pessoa nos dados era novo durante o experimento. Estamos agora interessados em medir a proporção de pessoas na população que escuta pelo menos um terço de artistas novos em um período.
+
+```{r}
+lastfm = lastfm %>% 
+  mutate(mais_novos = news / (news + old) > 1/3) 
+
+THETA2 = lastfm %>% 
+  summarise(p = sum(mais_novos) / n()) %>% 
+  pull(p)
+
+THETA2
+```
+Claro, nós não sabemos $p$ na população. Mas assim como no caso damédia, usamos $\hat{p}$ calculado na amostra no lugar:
+
+
+```{r}
+AMOSTRA_P = 100
+
+uma_amostra = lastfm %>% 
+  sample_n(AMOSTRA_P) %>% 
+  summarise(p_chapeu = sum(mais_novos) / n(), 
+            n = n(), 
+            se = sqrt(p_chapeu * (1- p_chapeu) / n))
+
+com_ci = uma_amostra %>% 
+  mutate(margem_i = qnorm(p = .025, mean = 0, sd = 1) * se, 
+         margem_s = qnorm(p = .975, mean = 0, sd = 1) * se, 
+         ic_inferior = p_chapeu + margem_i, 
+         ic_superior = p_chapeu + margem_s)
+
+com_ci
+```
+
+
+
+## Outros casos
+
+Existem formas fechadas para os ICs de outras estatísticas, como o coeficiente de correlação de Pearson, mas não vamos cobrí-las aqui. Eu sugiro que para o caso geral você use bootstrap. 
+
